@@ -1,0 +1,183 @@
+#### DESeq2 Script for Differential Gene Expression Analysis
+# Functional Genomics BIOL: 6850
+### Resources and Citations:
+# Love et al. 2016 DESeq2 Genome Biology
+# https://bioconductor.riken.jp/packages/2.14/bioc/vignettes/DESeq2/inst/doc/DESeq2.pdf
+# http://master.bioconductor.org/packages/release/workflows/vignettes/rnaseqGene/inst/doc/rnaseqGene.html
+
+### Set your working directory to the location of your data
+# Use the Session menu: Session > Set Working Directory > To Source File Location
+# Or uncomment and modify the line below if running manually
+# setwd("/path/to/your/project/directory")
+
+#### Install the DESeq2 package if not already installed
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+BiocManager::install("DESeq2")
+
+## Load the DESeq2 library
+library(DESeq2)
+
+########## 1.3 Input Data ##############
+
+### Input the count data (gene count matrix)
+# Assumes output from prepDE.py3 (e.g., from a previous step like StringTie)
+countdata <- as.matrix(read.csv("gene_count_matrix.csv", row.names="gene_id"))
+dim(countdata)
+head(countdata)
+
+# If your count matrix has extra rows/columns (e.g., length), uncomment and adjust:
+# countdata <- countdata[, c(-1)]  # Remove length column if present
+# dim(countdata)
+# head(countdata)
+
+### Input the metadata (phenotype data)
+# PHENO_DATA.txt should contain sample info: sample names, size (Large/Small), BioProject
+coldata <- read.table("PHENO_DATA.txt", header=TRUE, row.names=1)
+dim(coldata)
+head(coldata)
+
+# Example PHENO_DATA.txt structure:
+# sample      size  BioProject
+# SRR8996966  Large PRJNA396033
+# SRR8996977  Small PRJNA396033
+# DRR546744   Small PRJDB18013
+
+# Check that sample IDs match between countdata and coldata
+all(rownames(coldata) %in% colnames(countdata))
+countdata <- countdata[, rownames(coldata)]
+all(rownames(coldata) == colnames(countdata))
+
+## Create the DESeqDataSet object
+# Design includes BioProject to account for batch effects and size for breed comparison
+dds <- DESeqDataSetFromMatrix(countData = countdata, colData = coldata, design = ~ BioProject + size)
+dds
+
+##### Prefiltering
+# Remove genes with fewer than 20 reads to reduce noise
+dds <- dds[rowSums(counts(dds)) > 20, ]
+dds
+
+## Set factor levels
+# Set "Small" as the reference level for comparison
+dds$size <- factor(dds$size, levels = c("Small", "Large"))
+
+###### 1.4 Differential Expression Analysis
+### Run DESeq2
+dds <- DESeq(dds)
+res <- results(dds)
+res
+
+# Order results by adjusted p-value
+resOrdered <- res[order(res$padj), ]
+resOrdered
+
+# Summarize results
+summary(res)  # Default p < 0.1
+sum(res$padj < 0.1, na.rm = TRUE)
+
+# Results with alpha = 0.05
+res05 <- results(dds, alpha = 0.05)
+summary(res05)
+sum(res05$padj < 0.05, na.rm = TRUE)
+
+### 1.5.1 MA-plot
+# Visualize log2 fold changes vs. mean expression
+plotMA(res, main = "DESeq2: Large vs Small Dog Breeds", ylim = c(-8, 8))
+
+# Identify specific genes interactively (optional)
+# idx <- identify(res$baseMean, res$log2FoldChange)
+# rownames(res)[idx]  # Press Escape after selecting
+
+### 1.5.2 Plot Counts
+# Plot counts for a gene of interest (e.g., an IIS pathway gene like INSR)
+plotCounts(dds, gene = "YOUR_GENE_ID", intgroup = "size")
+# Plot gene with the lowest adjusted p-value
+plotCounts(dds, gene = which.min(res$padj), intgroup = "size")
+
+### Write results to a file
+write.csv(as.data.frame(resOrdered), file = "DGE_results_dog.csv")
+
+### 2.1.2 Extracting Transformed Values
+rld <- rlog(dds)
+vsd <- varianceStabilizingTransformation(dds)
+head(assay(rld), 3)
+
+### Heatmap of the Count Matrix
+library("pheatmap")
+topVarGenes <- head(order(rowVars(assay(vsd)), decreasing = TRUE), 50)
+mat <- assay(vsd)[topVarGenes, ]
+mat <- mat - rowMeans(mat)
+anno <- as.data.frame(colData(vsd)[, c("size", "BioProject")])
+pheatmap(mat, annotation_col = anno)
+
+### 2.2.2 Heatmap of Sample-to-Sample Distances
+sampleDists <- dist(t(assay(rld)))
+library("RColorBrewer")
+sampleDistMatrix <- as.matrix(sampleDists)
+rownames(sampleDistMatrix) <- paste(rld$size, rld$BioProject, sep = "_")
+colors <- colorRampPalette(rev(brewer.pal(9, "Blues")))(255)
+pheatmap(sampleDistMatrix, clustering_distance_rows = sampleDists,
+         clustering_distance_cols = sampleDists, col = colors)
+
+### 2.2.3 Principal Component Analysis (PCA)
+plotPCA(rld, intgroup = c("size", "BioProject"))
+
+############ Preparing Data for GSEA and Cytoscape #############
+# Load the GTF file
+gtf <- read.table("genomic.gtf", sep="\t", header=FALSE, quote="", stringsAsFactors=FALSE)
+
+# Filter for gene lines
+genes <- gtf[gtf$V3 == "gene", ]
+
+# Check the first few entries of the 9th column
+head(genes$V9)
+
+install.packages("stringr")
+library(stringr)
+
+genes$gene_id <- str_extract(genes$V9, '(?<=gene_id ")[^"]+')
+genes$gene_name <- str_extract(genes$V9, '(?<=gene ")[^"]+')
+genes$full_id <- paste0("gene-", genes$gene_id, "|", genes$gene_name)
+genes$gene_name <- ifelse(is.na(genes$gene_name), genes$gene_id, genes$gene_name)
+dog_annotation <- genes[, c("full_id", "gene_name")]
+colnames(dog_annotation) <- c("gene_id", "gene_name")
+write.csv(dog_annotation, "dog_annotation.csv", row.names=FALSE)
+
+### Merge DGE results with annotation
+Anno <- read.csv("dog_annotation.csv", stringsAsFactors = FALSE, na.strings = c(""))
+DGEresults <- read.csv("DGE_results_dog.csv", stringsAsFactors = FALSE)
+names(DGEresults)[1] <- "gene_id"
+DGE_Anno <- merge(Anno, DGEresults, by = "gene_id", all.y = TRUE)
+dim(DGE_Anno)
+summary(DGE_Anno)
+
+
+# Create the rank column
+DGE_Anno_Rank <- within(DGE_Anno, rank <- sign(log2FoldChange) * -log10(pvalue))
+
+# Select gene_name and rank columns
+DGErank <- DGE_Anno_Rank[, c("gene_name", "rank")]
+
+# Remove rows with NA in rank
+DGErank <- na.omit(DGErank)
+
+# Sort by rank in descending order (optional but recommended for GSEA)
+DGErank <- DGErank[order(DGErank$rank, decreasing = TRUE), ]
+
+# Write to a file for GSEA
+write.table(DGErank, file = "DGErank_for_GSEA.txt", sep = "\t", quote = FALSE, row.names = FALSE)
+
+
+# Load DESeq2
+library(DESeq2)
+
+# Normalized Expression Data
+nt <- normTransform(dds)  # Transform the counts
+NormTransExp <- assay(nt)  # Extract the normalized data
+gene_id <- rownames(NormTransExp)  # Get gene IDs
+NormTransExpIDs <- cbind(gene_id, NormTransExp)  # Combine IDs with data
+NormTransExp_Anno <- merge(Anno, NormTransExpIDs, by = "gene_id", all.y = FALSE)  # Merge with annotations
+NormTransExp_Anno_withName <- na.omit(NormTransExp_Anno)  # Remove rows with NA
+write.table(NormTransExp_Anno_withName, file = "NormTransExp_Anno_Names.txt",
+            quote = FALSE, row.names = FALSE, sep = "\t")  # Write to file
