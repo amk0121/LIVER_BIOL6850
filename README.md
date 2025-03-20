@@ -205,7 +205,7 @@ May 7: Complete group reflection survey.
 
 
 
-## [DESeq2 Analysis](4_Deseq2_Dog.sh)
+## [DESeq2 Analysis](4-DESeq2_Dog.txt)
 
 1. Experimental Design
     - Design Formula: Changed from ~treatment to ~BioProject + size. This accounts for batch effects (via BioProject) and compares gene expression between large and small breeds (size).
