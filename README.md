@@ -113,36 +113,6 @@ GitHub and Readme Management:
 
 ----
 
-## Timeline for Project Completion
-
-March 10-15: Finalize sample selection, index the Tasha genome, and run the bioinformatic pipeline (e.g., trimming, alignment, counting).
-
-March 16-19: Generate count matrix and perform DESeq2 differential expression analysis.
-
-March 20-25: Run GSEA for KEGG pathways and IIS pathway.
-
-March 26-31: Assess protein-coding sequence variation in top IIS genes.
-
-April 1: Group check-in to review progress and troubleshoot.
-
-April 2-15: Draft manuscript sections (introduction, methods, results, discussion).
-
-April 16-17: Finalize manuscript draft for peer review.
-
-April 18-21: Conduct peer reviews and revise manuscript.
-
-April 22-30: Prepare and rehearse presentation.
-
-May 1: Deliver group presentation.
-
-May 2-5: Finalize manuscript and GitHub repository.
-
-May 5, 5 PM: Submit final manuscript.
-
-May 7: Complete group reflection survey.
-
-----
-
 ## [Downloading FastQC](1_download_fastqc.sh)
 
 **Instructions to Run the Script:**
