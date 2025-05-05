@@ -262,6 +262,7 @@ indian_dge<- dog.data.named%>%
 fire_dge<- dog.data.named%>% 
   filter(geneIDs %in% firebrick4_exp)
 
+
 ############## Annotate DEGs for possible use in GSEA #######################
 Anno <- read.csv("dog_annotation.csv", stringsAsFactors = FALSE, na.strings=c(""))
 summary(Anno)
@@ -315,5 +316,6 @@ data.frame(Go_result)
 #barplot top 20 enriched terms
 fit<- plot(barplot(Go_result, showCategory = 20))        
 
-
+################ WGCNA Code Tutorial Aknowledgment #########################
+#Thank you to Victoria French, CeCe Gerstenbacher, Warrenkevin Henderson, and Elizabeth Varghese 11/29/2021 for WGCNA tutorial https://fuzzyatelin.github.io/bioanth-stats/module-F21-Group1/module-F21-Group1.html#Weighted_Gene_Correlation_Network_Analysis
 
